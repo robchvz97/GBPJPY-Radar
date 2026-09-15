@@ -1,0 +1,168 @@
+name: GBPJPY Radar Monitor
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    # Guadalajara: lunes a viernes, 06:01–10:56
+    - cron: '1-56/5 6-10 * * 1-5'
+      timezone: 'America/Mexico_City'
+
+    # Guadalajara: domingo a jueves, 20:01–22:56
+    - cron: '1-56/5 20-22 * * 0-4'
+      timezone: 'America/Mexico_City'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gbpjpy-radar-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Preparar estado
+        run: mkdir -p .radar-state
+
+      - name: Recuperar ultimo estado
+        uses: actions/cache/restore@v4
+        with:
+          path: .radar-state
+          key: gbpjpy-radar-state-${{ github.run_id }}
+          restore-keys: |
+            gbpjpy-radar-state-
+
+      - name: Probar notificacion manual
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: |
+          PAYLOAD=$(jq -n \
+            --arg topic "$NTFY_TOPIC" \
+            --arg title "GBPJPY Radar conectado" \
+            --arg message "Prueba correcta. El monitor puede enviar avisos a tu iPhone." \
+            --arg click "https://gbpjpy-radar.vercel.app" \
+            '{
+              topic: $topic,
+              title: $title,
+              message: $message,
+              priority: 3,
+              tags: ["white_check_mark"],
+              click: $click
+            }')
+
+          curl -fsS \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            https://ntfy.sh > /dev/null
+
+      - name: Consultar GBPJPY Radar
+        id: radar
+        run: |
+          curl -fsS \
+            --retry 2 \
+            --retry-delay 3 \
+            "https://gbpjpy-radar.vercel.app/api/market" \
+            -o radar.json
+
+          cat radar.json | jq .
+
+          OK=$(jq -r '.ok // false' radar.json)
+
+          if [ "$OK" != "true" ]; then
+            echo "El radar devolvio un error."
+            exit 1
+          fi
+
+          VERDICT=$(jq -r '.verdict // "NO_TRADE"' radar.json)
+
+          if [ "$VERDICT" = "BUY" ] || [ "$VERDICT" = "SELL" ]; then
+            SIGNAL_DATA=$(jq -r '
+              [
+                .verdict,
+                (.support|tostring),
+                (.resistance|tostring),
+                .trend.trend,
+                .trend.highStructure,
+                .trend.lowStructure
+              ] | join("|")
+            ' radar.json)
+
+            CURRENT_KEY=$(printf "%s" "$SIGNAL_DATA" | sha256sum | cut -d" " -f1)
+          else
+            CURRENT_KEY="NO_TRADE"
+          fi
+
+          LAST_KEY="NONE"
+
+          if [ -f .radar-state/last_key ]; then
+            LAST_KEY=$(cat .radar-state/last_key)
+          fi
+
+          echo "Verdict: $VERDICT"
+          echo "Estado anterior: $LAST_KEY"
+          echo "Estado actual: $CURRENT_KEY"
+
+          if [ "$VERDICT" != "NO_TRADE" ] && [ "$CURRENT_KEY" != "$LAST_KEY" ]; then
+            echo "notify=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "notify=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "$CURRENT_KEY" > .radar-state/last_key
+
+      - name: Enviar señal al iPhone
+        if: steps.radar.outputs.notify == 'true'
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: |
+          VERDICT=$(jq -r '.verdict' radar.json)
+          ENTRY=$(jq -r '.entry' radar.json)
+          SL=$(jq -r '.sl' radar.json)
+          TP=$(jq -r '.tp' radar.json)
+          TREND=$(jq -r '.trend.trend' radar.json)
+          SCORE=$(jq -r '"\(.passedChecks)/\(.totalChecks)"' radar.json)
+
+          if [ "$VERDICT" = "BUY" ]; then
+            TAG="chart_with_upwards_trend"
+          else
+            TAG="chart_with_downwards_trend"
+          fi
+
+          MESSAGE="Entrada: ${ENTRY}
+          SL: ${SL}
+          TP: ${TP}
+          R:R 1:2
+          Tendencia 15M: ${TREND}
+          Confluencia: ${SCORE}
+          Noticias High Impact: LIBRE"
+
+          PAYLOAD=$(jq -n \
+            --arg topic "$NTFY_TOPIC" \
+            --arg title "GBPJPY ${VERDICT} - TRADE" \
+            --arg message "$MESSAGE" \
+            --arg tag "$TAG" \
+            --arg click "https://gbpjpy-radar.vercel.app" \
+            '{
+              topic: $topic,
+              title: $title,
+              message: $message,
+              priority: 4,
+              tags: [$tag],
+              click: $click
+            }')
+
+          curl -fsS \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            https://ntfy.sh > /dev/null
+
+      - name: Guardar ultimo estado
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .radar-state
+          key: gbpjpy-radar-state-${{ github.run_id }}
