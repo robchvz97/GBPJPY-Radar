@@ -1,0 +1,15 @@
+{
+  "id":"/",
+  "name":"GBPJPY Radar",
+  "short_name":"GBPJPY Radar",
+  "description":"Radar personal de GBPJPY con tendencia 15M, soporte/resistencia 5M y diario de trading.",
+  "start_url":"/",
+  "scope":"/",
+  "display":"standalone",
+  "background_color":"#080d17",
+  "theme_color":"#0b1220",
+  "icons":[
+    {"src":"/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
+    {"src":"/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+  ]
+}

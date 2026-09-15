@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1220" />
+  <meta name="description" content="Radar personal GBPJPY: tendencia 15M, soporte/resistencia 5M y diario de trading." />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icon-192.png" />
+  <link rel="stylesheet" href="/styles.css?v=1" />
+  <title>GBPJPY Radar</title>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">GBPJPY RADAR · V1</div>
+        <h1>Radar + Diario</h1>
+        <p>15M para tendencia · 5M para entrada · R:R 2:1</p>
+      </div>
+      <button id="refreshBtn" class="ghost">Actualizar</button>
+    </header>
+
+    <div class="warning">Herramienta experimental de apoyo. No garantiza rentabilidad y no ejecuta operaciones. Confirma siempre el precio con tu broker.</div>
+
+    <section class="grid hero-grid">
+      <article class="card signal-card">
+        <div class="card-head"><span>SEÑAL ACTUAL</span><span id="feedStatus" class="dot-label"><i></i> Cargando</span></div>
+        <div id="verdict" class="verdict neutral">—</div>
+        <div id="signalSubtitle" class="muted">Analizando GBP/JPY…</div>
+        <div id="tradePlan" class="trade-plan hidden">
+          <div><span>Entrada</span><strong id="entry">—</strong></div>
+          <div><span>SL</span><strong id="sl">—</strong></div>
+          <div><span>TP</span><strong id="tp">—</strong></div>
+          <div><span>R:R</span><strong id="rr">—</strong></div>
+        </div>
+        <div class="actions">
+          <button id="recordSignalBtn" class="primary hidden">Registrar esta señal</button>
+          <button id="notifyBtn" class="secondary">Activar avisos</button>
+        </div>
+      </article>
+
+      <article class="card market-card">
+        <div class="card-head"><span>MERCADO</span><span id="lastTime" class="muted">—</span></div>
+        <div class="market-price"><span>GBP/JPY</span><strong id="price">—</strong></div>
+        <div class="metric-row"><span>Tendencia 15M</span><strong id="trend">—</strong></div>
+        <div class="metric-row"><span>Soporte 5M</span><strong id="support">—</strong></div>
+        <div class="metric-row"><span>Resistencia 5M</span><strong id="resistance">—</strong></div>
+        <div class="metric-row"><span>Confluencia</span><strong id="score">—</strong></div>
+      </article>
+    </section>
+
+    <section class="card checklist-card">
+      <div class="card-head"><span>CHECKLIST DE ENTRADA</span><span class="muted">Solo TRADE si cumple todo</span></div>
+      <div id="checklist" class="checklist"></div>
+    </section>
+
+    <section class="stats-grid">
+      <article class="stat"><span>Operaciones</span><strong id="statTrades">0</strong></article>
+      <article class="stat"><span>Acierto</span><strong id="statWinRate">—</strong></article>
+      <article class="stat"><span>R acumulado</span><strong id="statR">0.00R</strong></article>
+      <article class="stat"><span>Expectativa</span><strong id="statExpectancy">—</strong></article>
+    </section>
+
+    <section class="card journal-card">
+      <div class="card-head">
+        <div><span>DIARIO DE TRADING</span><div class="muted small">Guarda resultado, notas y captura.</div></div>
+        <button id="manualBtn" class="secondary">+ Operación manual</button>
+      </div>
+      <div id="journal" class="journal"></div>
+      <div id="emptyJournal" class="empty">Todavía no hay operaciones registradas.</div>
+    </section>
+
+    <footer>
+      <span id="sourceText">Feed: —</span>
+      <span>Actualización automática cada 5 minutos mientras la app esté abierta.</span>
+    </footer>
+  </main>
+
+  <dialog id="manualDialog">
+    <form id="manualForm" method="dialog">
+      <div class="dialog-head"><h2>Registrar operación</h2><button type="button" data-close>×</button></div>
+      <div class="form-grid">
+        <label>Lado<select id="manualSide"><option>BUY</option><option>SELL</option></select></label>
+        <label>Entrada<input id="manualEntry" type="number" step="0.001" required /></label>
+        <label>Stop Loss<input id="manualSl" type="number" step="0.001" required /></label>
+        <label>Take Profit<input id="manualTp" type="number" step="0.001" required /></label>
+        <label class="span2">Notas<textarea id="manualNotes" rows="3" placeholder="Por qué entré, qué vi, emociones..."></textarea></label>
+        <label class="span2">Captura<input id="manualShot" type="file" accept="image/*" /></label>
+      </div>
+      <div class="dialog-actions"><button type="button" class="secondary" data-close>Cancelar</button><button class="primary" type="submit">Guardar</button></div>
+    </form>
+  </dialog>
+
+  <script src="/app.js?v=1"></script>
+</body>
+</html>
