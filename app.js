@@ -237,6 +237,7 @@ function renderPaper(data) {
     stats.totalSignals ?? list.length;
 
   $('#statWinRate').textContent =
+    stats.winRatePct != null &&
     Number.isFinite(
       Number(stats.winRatePct)
     )
@@ -251,6 +252,7 @@ function renderPaper(data) {
       : '0.00R';
 
   $('#statExpectancy').textContent =
+    stats.expectancyR != null &&
     Number.isFinite(
       Number(stats.expectancyR)
     )
@@ -303,6 +305,7 @@ function renderPaper(data) {
       : '—';
 
   const pf =
+    stats.profitFactor != null &&
     Number.isFinite(
       Number(stats.profitFactor)
     )
