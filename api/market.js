@@ -2,7 +2,15 @@ const SYMBOL = 'GBP/JPY';
 const PAIR = 'GBP/JPY';
 const PIP = 0.01;
 
+// Parámetros EXACTOS del Pine
+const PIVOT_LEN = 3;
+const ZONA_PCT = 0.05;
+const SL_BUFFER_PCT = 0.03;
+const COOLDOWN_BARS = 10;
+const RR = 2;
+
 const LOCAL_TZ = 'America/Mexico_City';
+
 const FOREX_FACTORY_URL =
   'https://nfs.faireconomy.media/ff_calendar_thisweek.json';
 
@@ -13,9 +21,20 @@ let calendarCache = {
 
 function json(res, status, body) {
   res.statusCode = status;
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
-  res.end(JSON.stringify(body));
+
+  res.setHeader(
+    'Content-Type',
+    'application/json; charset=utf-8'
+  );
+
+  res.setHeader(
+    'Cache-Control',
+    'no-store'
+  );
+
+  res.end(
+    JSON.stringify(body)
+  );
 }
 
 function parseTwelveUtc(datetime) {
@@ -25,14 +44,24 @@ function parseTwelveUtc(datetime) {
     .replace(' ', 'T')
     .replace(/Z$/, '');
 
-  return Date.parse(`${normalized}Z`) / 1000;
+  return (
+    Date.parse(
+      `${normalized}Z`
+    ) / 1000
+  );
 }
 
-async function fetchTwelveData(interval, outputsize = 250) {
-  const apiKey = process.env.TWELVE_DATA_API_KEY;
+async function fetchTwelveData(
+  interval,
+  outputsize
+) {
+  const apiKey =
+    process.env.TWELVE_DATA_API_KEY;
 
   if (!apiKey) {
-    throw new Error('Falta TWELVE_DATA_API_KEY en Vercel');
+    throw new Error(
+      'Falta TWELVE_DATA_API_KEY en Vercel'
+    );
   }
 
   const url =
@@ -44,19 +73,28 @@ async function fetchTwelveData(interval, outputsize = 250) {
     `&timezone=UTC` +
     `&apikey=${encodeURIComponent(apiKey)}`;
 
-  const r = await fetch(url, {
-    headers: {
-      Accept: 'application/json'
+  const r = await fetch(
+    url,
+    {
+      headers: {
+        Accept: 'application/json'
+      }
     }
-  });
+  );
 
   if (!r.ok) {
-    throw new Error(`Twelve Data HTTP ${r.status}`);
+    throw new Error(
+      `Twelve Data HTTP ${r.status}`
+    );
   }
 
-  const data = await r.json();
+  const data =
+    await r.json();
 
-  if (data.status === 'error' || !Array.isArray(data.values)) {
+  if (
+    data.status === 'error' ||
+    !Array.isArray(data.values)
+  ) {
     throw new Error(
       data.message ||
       data.code ||
@@ -64,63 +102,105 @@ async function fetchTwelveData(interval, outputsize = 250) {
     );
   }
 
-  const candles = data.values
+  return data.values
     .map(v => ({
-      t: parseTwelveUtc(v.datetime),
-      open: Number(v.open),
-      high: Number(v.high),
-      low: Number(v.low),
-      close: Number(v.close)
+      t:
+        parseTwelveUtc(
+          v.datetime
+        ),
+
+      open:
+        Number(v.open),
+
+      high:
+        Number(v.high),
+
+      low:
+        Number(v.low),
+
+      close:
+        Number(v.close)
     }))
     .filter(c =>
-      [c.t, c.open, c.high, c.low, c.close]
-        .every(Number.isFinite)
+      [
+        c.t,
+        c.open,
+        c.high,
+        c.low,
+        c.close
+      ].every(
+        Number.isFinite
+      )
     );
-
-  return candles;
 }
 
-function confirmedCandles(candles, seconds) {
-  const now = Math.floor(Date.now() / 1000);
+function confirmedCandles(
+  candles,
+  seconds
+) {
+  const now =
+    Math.floor(
+      Date.now() / 1000
+    );
 
-  const closed = candles.filter(
-    c => c.t + seconds <= now
-  );
+  const closed =
+    candles.filter(
+      c =>
+        c.t + seconds <= now
+    );
 
   return closed.length
     ? closed
     : candles.slice(0, -1);
 }
 
-function getLocalParts(date = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: LOCAL_TZ,
-    weekday: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23'
-  }).formatToParts(date);
+function getLocalParts(
+  date
+) {
+  const parts =
+    new Intl.DateTimeFormat(
+      'en-US',
+      {
+        timeZone: LOCAL_TZ,
+        weekday: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23'
+      }
+    ).formatToParts(date);
 
   const obj = {};
 
   for (const p of parts) {
-    if (p.type !== 'literal') {
-      obj[p.type] = p.value;
+    if (
+      p.type !== 'literal'
+    ) {
+      obj[p.type] =
+        p.value;
     }
   }
 
   return {
-    weekday: obj.weekday,
-    hour: Number(obj.hour),
-    minute: Number(obj.minute)
+    weekday:
+      obj.weekday,
+
+    hour:
+      Number(obj.hour),
+
+    minute:
+      Number(obj.minute)
   };
 }
 
-function sessionStatus(now = new Date()) {
-  const local = getLocalParts(now);
+function sessionStatusAt(
+  date
+) {
+  const local =
+    getLocalParts(date);
 
   const minutes =
-    local.hour * 60 + local.minute;
+    local.hour * 60 +
+    local.minute;
 
   const morning =
     minutes >= 6 * 60 &&
@@ -130,31 +210,49 @@ function sessionStatus(now = new Date()) {
     minutes >= 20 * 60 &&
     minutes < 23 * 60;
 
-  const morningDays =
-    ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+  const morningDays = [
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri'
+  ];
 
-  const eveningDays =
-    ['Sun', 'Mon', 'Tue', 'Wed', 'Thu'];
+  const eveningDays = [
+    'Sun',
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu'
+  ];
 
   const morningAllowed =
     morning &&
-    morningDays.includes(local.weekday);
+    morningDays.includes(
+      local.weekday
+    );
 
   const eveningAllowed =
     evening &&
-    eveningDays.includes(local.weekday);
+    eveningDays.includes(
+      local.weekday
+    );
 
   const allowed =
-    morningAllowed || eveningAllowed;
+    morningAllowed ||
+    eveningAllowed;
 
-  let window = 'FUERA DE HORARIO';
+  let window =
+    'FUERA DE HORARIO';
 
   if (morningAllowed) {
-    window = '06:00–11:00';
+    window =
+      '06:00–11:00';
   }
 
   if (eveningAllowed) {
-    window = '20:00–23:00';
+    window =
+      '20:00–23:00';
   }
 
   return {
@@ -168,24 +266,33 @@ function sessionStatus(now = new Date()) {
 }
 
 async function fetchForexFactoryCalendar() {
-  const now = Date.now();
+  const now =
+    Date.now();
 
-  // Forex Factory actualiza el archivo aprox. cada hora.
-  // Evitamos pedirlo constantemente.
   if (
     calendarCache.events &&
-    now - calendarCache.fetchedAt <
+    now -
+      calendarCache.fetchedAt <
       55 * 60 * 1000
   ) {
-    return calendarCache.events;
+    return (
+      calendarCache.events
+    );
   }
 
-  const r = await fetch(FOREX_FACTORY_URL, {
-    headers: {
-      Accept: 'application/json',
-      'User-Agent': 'GBPJPY-Radar/1.0'
-    }
-  });
+  const r =
+    await fetch(
+      FOREX_FACTORY_URL,
+      {
+        headers: {
+          Accept:
+            'application/json',
+
+          'User-Agent':
+            'GBPJPY-Radar/1.0'
+        }
+      }
+    );
 
   if (!r.ok) {
     throw new Error(
@@ -193,9 +300,12 @@ async function fetchForexFactoryCalendar() {
     );
   }
 
-  const events = await r.json();
+  const events =
+    await r.json();
 
-  if (!Array.isArray(events)) {
+  if (
+    !Array.isArray(events)
+  ) {
     throw new Error(
       'Forex Factory no devolvió calendario válido'
     );
@@ -209,8 +319,11 @@ async function fetchForexFactoryCalendar() {
   return events;
 }
 
-function isExtendedCentralBankEvent(title = '') {
-  const t = title.toLowerCase();
+function isExtendedCentralBankEvent(
+  title = ''
+) {
+  const t =
+    title.toLowerCase();
 
   const keywords = [
     'official bank rate',
@@ -225,53 +338,96 @@ function isExtendedCentralBankEvent(title = '') {
     'press conference'
   ];
 
-  return keywords.some(k => t.includes(k));
+  return keywords.some(
+    k => t.includes(k)
+  );
 }
 
-function evaluateNews(events, now = new Date()) {
-  const nowMs = now.getTime();
+function evaluateNews(
+  events,
+  atDate
+) {
+  const atMs =
+    atDate.getTime();
 
-  const relevant = events
-    .filter(e =>
-      ['GBP', 'JPY'].includes(e.country) &&
-      String(e.impact).toLowerCase() === 'high'
-    )
-    .map(e => ({
-      ...e,
-      timestamp: new Date(e.date).getTime()
-    }))
-    .filter(e => Number.isFinite(e.timestamp))
-    .sort((a, b) => a.timestamp - b.timestamp);
+  const relevant =
+    events
+      .filter(e =>
+        ['GBP', 'JPY']
+          .includes(e.country) &&
 
-  let blockedEvent = null;
+        String(e.impact)
+          .toLowerCase() ===
+          'high'
+      )
+      .map(e => ({
+        ...e,
 
-  for (const event of relevant) {
+        timestamp:
+          new Date(
+            e.date
+          ).getTime()
+      }))
+      .filter(e =>
+        Number.isFinite(
+          e.timestamp
+        )
+      )
+      .sort(
+        (a, b) =>
+          a.timestamp -
+          b.timestamp
+      );
+
+  let blockedEvent =
+    null;
+
+  for (
+    const event
+    of relevant
+  ) {
     const extended =
-      isExtendedCentralBankEvent(event.title);
+      isExtendedCentralBankEvent(
+        event.title
+      );
 
     const beforeMs =
       30 * 60 * 1000;
 
     const afterMs =
-      (extended ? 60 : 30) *
-      60 * 1000;
-
-    const blockStart =
-      event.timestamp - beforeMs;
-
-    const blockEnd =
-      event.timestamp + afterMs;
+      (
+        extended
+          ? 60
+          : 30
+      ) *
+      60 *
+      1000;
 
     if (
-      nowMs >= blockStart &&
-      nowMs <= blockEnd
+      atMs >=
+        event.timestamp -
+          beforeMs &&
+
+      atMs <=
+        event.timestamp +
+          afterMs
     ) {
       blockedEvent = {
-        title: event.title,
-        currency: event.country,
-        impact: event.impact,
-        date: event.date,
-        timestamp: event.timestamp,
+        title:
+          event.title,
+
+        currency:
+          event.country,
+
+        impact:
+          event.impact,
+
+        date:
+          event.date,
+
+        timestamp:
+          event.timestamp,
+
         extended
       };
 
@@ -280,46 +436,80 @@ function evaluateNews(events, now = new Date()) {
   }
 
   const nextEvent =
-    relevant.find(e => e.timestamp > nowMs);
+    relevant.find(
+      e =>
+        e.timestamp > atMs
+    );
 
   return {
-    clear: !blockedEvent,
-    blocked: Boolean(blockedEvent),
+    clear:
+      !blockedEvent,
+
+    blocked:
+      Boolean(
+        blockedEvent
+      ),
 
     blockedEvent,
 
-    nextHighImpact: nextEvent
-      ? {
-          title: nextEvent.title,
-          currency: nextEvent.country,
-          date: nextEvent.date,
-          minutesAway: Math.round(
-            (nextEvent.timestamp - nowMs) /
-            60000
-          )
-        }
-      : null
+    nextHighImpact:
+      nextEvent
+        ? {
+            title:
+              nextEvent.title,
+
+            currency:
+              nextEvent.country,
+
+            date:
+              nextEvent.date,
+
+            minutesAway:
+              Math.round(
+                (
+                  nextEvent.timestamp -
+                  atMs
+                ) /
+                60000
+              )
+          }
+        : null
   };
 }
 
-function getPivots(candles, len = 3) {
+/*
+  Replica ta.pivothigh()
+  y ta.pivotlow()
+*/
+function buildConfirmedPivots(
+  candles,
+  intervalSeconds
+) {
   const highs = [];
   const lows = [];
 
   for (
-    let i = len;
-    i < candles.length - len;
+    let i = PIVOT_LEN;
+    i <
+      candles.length -
+        PIVOT_LEN;
     i++
   ) {
     let isHigh = true;
     let isLow = true;
 
     for (
-      let j = i - len;
-      j <= i + len;
+      let j =
+        i - PIVOT_LEN;
+
+      j <=
+        i + PIVOT_LEN;
+
       j++
     ) {
-      if (j === i) continue;
+      if (j === i) {
+        continue;
+      }
 
       if (
         candles[j].high >=
@@ -336,27 +526,89 @@ function getPivots(candles, len = 3) {
       }
     }
 
+    const confirmBar =
+      candles[
+        i + PIVOT_LEN
+      ];
+
+    const availableT =
+      confirmBar.t +
+      intervalSeconds;
+
     if (isHigh) {
       highs.push({
-        price: candles[i].high,
-        time: candles[i].t
+        price:
+          candles[i].high,
+
+        pivotT:
+          candles[i].t,
+
+        availableT
       });
     }
 
     if (isLow) {
       lows.push({
-        price: candles[i].low,
-        time: candles[i].t
+        price:
+          candles[i].low,
+
+        pivotT:
+          candles[i].t,
+
+        availableT
       });
     }
   }
 
-  return { highs, lows };
+  return {
+    highs,
+    lows
+  };
 }
 
-function trendFromPivots(candles) {
-  const { highs, lows } =
-    getPivots(candles, 3);
+function availablePivots(
+  list,
+  cutoffT
+) {
+  return list.filter(
+    p =>
+      p.availableT <=
+      cutoffT
+  );
+}
+
+function latestPivotPrice(
+  list,
+  cutoffT
+) {
+  const a =
+    availablePivots(
+      list,
+      cutoffT
+    );
+
+  return a.length
+    ? a[
+        a.length - 1
+      ].price
+    : null;
+}
+
+function structureAt(
+  pivots15,
+  cutoffT
+) {
+  const highs =
+    availablePivots(
+      pivots15.highs,
+      cutoffT
+    );
+
+  const lows =
+    availablePivots(
+      pivots15.lows,
+      cutoffT
+    );
 
   if (
     highs.length < 2 ||
@@ -364,22 +616,66 @@ function trendFromPivots(candles) {
   ) {
     return {
       trend: 'NEUTRAL',
-      highStructure: 'N/A',
-      lowStructure: 'N/A'
+
+      highStructure:
+        'N/A',
+
+      lowStructure:
+        'N/A',
+
+      lastHigh:
+        highs.length
+          ? highs[
+              highs.length -
+                1
+            ].price
+          : null,
+
+      prevHigh:
+        highs.length > 1
+          ? highs[
+              highs.length -
+                2
+            ].price
+          : null,
+
+      lastLow:
+        lows.length
+          ? lows[
+              lows.length -
+                1
+            ].price
+          : null,
+
+      prevLow:
+        lows.length > 1
+          ? lows[
+              lows.length -
+                2
+            ].price
+          : null
     };
   }
 
-  const prevHigh =
-    highs[highs.length - 2].price;
-
   const lastHigh =
-    highs[highs.length - 1].price;
+    highs[
+      highs.length - 1
+    ].price;
 
-  const prevLow =
-    lows[lows.length - 2].price;
+  const prevHigh =
+    highs[
+      highs.length - 2
+    ].price;
 
   const lastLow =
-    lows[lows.length - 1].price;
+    lows[
+      lows.length - 1
+    ].price;
+
+  const prevLow =
+    lows[
+      lows.length - 2
+    ].price;
 
   const highStructure =
     lastHigh > prevHigh
@@ -395,20 +691,23 @@ function trendFromPivots(candles) {
         ? 'LL'
         : 'EQ';
 
-  let trend = 'NEUTRAL';
+  let trend =
+    'NEUTRAL';
 
   if (
     highStructure === 'HH' &&
     lowStructure === 'HL'
   ) {
-    trend = 'BULLISH';
+    trend =
+      'BULLISH';
   }
 
   if (
     highStructure === 'LH' &&
     lowStructure === 'LL'
   ) {
-    trend = 'BEARISH';
+    trend =
+      'BEARISH';
   }
 
   return {
@@ -422,271 +721,488 @@ function trendFromPivots(candles) {
   };
 }
 
-function nearestLevels(candles, price) {
-  const { highs, lows } =
-    getPivots(candles, 3);
+/*
+  Replica el Pine barra por barra.
+  Esto conserva el cooldown
+  de 10 velas.
+*/
+function simulatePine(
+  c5,
+  c15
+) {
+  const pivots5 =
+    buildConfirmedPivots(
+      c5,
+      300
+    );
 
-  const supports = lows
-    .map(x => x.price)
-    .filter(p => p <= price);
+  const pivots15 =
+    buildConfirmedPivots(
+      c15,
+      900
+    );
 
-  const resistances = highs
-    .map(x => x.price)
-    .filter(p => p >= price);
+  let lastSignalIndex =
+    null;
 
-  const recent =
-    candles.slice(-60);
+  const signals = [];
 
-  const support =
-    supports.length
-      ? Math.max(...supports)
-      : Math.min(
-          ...recent.map(c => c.low)
+  let currentState =
+    null;
+
+  for (
+    let i = 0;
+    i < c5.length;
+    i++
+  ) {
+    const bar =
+      c5[i];
+
+    const closeT =
+      bar.t + 300;
+
+    const trend =
+      structureAt(
+        pivots15,
+        closeT
+      );
+
+    const support =
+      latestPivotPrice(
+        pivots5.lows,
+        closeT
+      );
+
+    const resistance =
+      latestPivotPrice(
+        pivots5.highs,
+        closeT
+      );
+
+    const zonaSoporteSuperior =
+      support !== null
+        ? support *
+          (
+            1 +
+            ZONA_PCT /
+              100
+          )
+        : null;
+
+    const zonaResistenciaInferior =
+      resistance !== null
+        ? resistance *
+          (
+            1 -
+            ZONA_PCT /
+              100
+          )
+        : null;
+
+    const velaAlcista =
+      bar.close >
+      bar.open;
+
+    const velaBajista =
+      bar.close <
+      bar.open;
+
+    const tocaSoporte =
+      support !== null &&
+
+      bar.low <=
+        zonaSoporteSuperior &&
+
+      bar.close >
+        support;
+
+    const tocaResistencia =
+      resistance !== null &&
+
+      bar.high >=
+        zonaResistenciaInferior &&
+
+      bar.close <
+        resistance;
+
+    const tendenciaAlcista =
+      trend.trend ===
+      'BULLISH';
+
+    const tendenciaBajista =
+      trend.trend ===
+      'BEARISH';
+
+    const setupCompra =
+      tendenciaAlcista &&
+      tocaSoporte &&
+      velaAlcista;
+
+    const setupVenta =
+      tendenciaBajista &&
+      tocaResistencia &&
+      velaBajista;
+
+    const puedeDarSenal =
+      lastSignalIndex ===
+        null ||
+
+      i -
+        lastSignalIndex >=
+        COOLDOWN_BARS;
+
+    const buySignal =
+      setupCompra &&
+      puedeDarSenal;
+
+    const sellSignal =
+      setupVenta &&
+      puedeDarSenal;
+
+    let signal =
+      null;
+
+    if (buySignal) {
+      const entry =
+        bar.close;
+
+      const sl =
+        support *
+        (
+          1 -
+          SL_BUFFER_PCT /
+            100
         );
 
-  const resistance =
-    resistances.length
-      ? Math.min(...resistances)
-      : Math.max(
-          ...recent.map(c => c.high)
+      const risk =
+        entry - sl;
+
+      if (risk > 0) {
+        signal = {
+          side:
+            'BUY',
+
+          entry,
+
+          sl,
+
+          tp:
+            entry +
+            risk * RR,
+
+          riskPips:
+            risk /
+            PIP,
+
+          candleTime:
+            new Date(
+              bar.t *
+                1000
+            ).toISOString(),
+
+          candleCloseTime:
+            new Date(
+              closeT *
+                1000
+            ).toISOString(),
+
+          barIndex: i
+        };
+      }
+    }
+
+    if (sellSignal) {
+      const entry =
+        bar.close;
+
+      const sl =
+        resistance *
+        (
+          1 +
+          SL_BUFFER_PCT /
+            100
         );
+
+      const risk =
+        sl - entry;
+
+      if (risk > 0) {
+        signal = {
+          side:
+            'SELL',
+
+          entry,
+
+          sl,
+
+          tp:
+            entry -
+            risk * RR,
+
+          riskPips:
+            risk /
+            PIP,
+
+          candleTime:
+            new Date(
+              bar.t *
+                1000
+            ).toISOString(),
+
+          candleCloseTime:
+            new Date(
+              closeT *
+                1000
+            ).toISOString(),
+
+          barIndex: i
+        };
+      }
+    }
+
+    if (signal) {
+      lastSignalIndex =
+        i;
+
+      signals.push(
+        signal
+      );
+    }
+
+    currentState = {
+      bar,
+      closeT,
+      trend,
+      support,
+      resistance,
+      zonaSoporteSuperior,
+      zonaResistenciaInferior,
+      velaAlcista,
+      velaBajista,
+      tocaSoporte,
+      tocaResistencia,
+      setupCompra,
+      setupVenta,
+      puedeDarSenal,
+      signal
+    };
+  }
 
   return {
-    support,
-    resistance
+    currentState,
+
+    latestPineSignal:
+      signals.length
+        ? signals[
+            signals.length -
+              1
+          ]
+        : null,
+
+    signalCountInLoadedHistory:
+      signals.length
   };
 }
 
-function analyze(
-  c5,
-  c15,
+function round3(n) {
+  return Number.isFinite(
+    Number(n)
+  )
+    ? Number(
+        Number(n)
+          .toFixed(3)
+      )
+    : null;
+}
+
+function buildAnalysis(
+  sim,
   session,
   news
 ) {
-  if (
-    !c5.length ||
-    !c15.length
-  ) {
+  const s =
+    sim.currentState;
+
+  if (!s) {
     throw new Error(
       'No hay suficientes velas confirmadas'
     );
   }
 
-  const last =
-    c5[c5.length - 1];
-
-  const price =
-    last.close;
-
-  const trend =
-    trendFromPivots(c15);
-
-  const {
-    support,
-    resistance
-  } = nearestLevels(
-    c5,
-    price
-  );
-
-  const tolerance =
-    0.0006;
-
-  const buffer =
-    0.0003;
-
-  const bullishCandle =
-    last.close > last.open;
-
-  const bearishCandle =
-    last.close < last.open;
-
-  const atSupport =
-    last.low <=
-      support *
-        (1 + tolerance) &&
-    last.close >= support;
-
-  const atResistance =
-    last.high >=
-      resistance *
-        (1 - tolerance) &&
-    last.close <= resistance;
+  const pineSignal =
+    s.signal;
 
   const trendDefined =
-    trend.trend === 'BULLISH' ||
-    trend.trend === 'BEARISH';
+    [
+      'BULLISH',
+      'BEARISH'
+    ].includes(
+      s.trend.trend
+    );
 
-  let zoneOk = false;
-  let candleOk = false;
+  let zoneOk =
+    false;
+
+  let candleOk =
+    false;
 
   if (
-    trend.trend === 'BULLISH'
+    s.trend.trend ===
+    'BULLISH'
   ) {
-    zoneOk = atSupport;
-    candleOk = bullishCandle;
+    zoneOk =
+      s.tocaSoporte;
+
+    candleOk =
+      s.velaAlcista;
   }
 
   if (
-    trend.trend === 'BEARISH'
+    s.trend.trend ===
+    'BEARISH'
   ) {
-    zoneOk = atResistance;
-    candleOk = bearishCandle;
+    zoneOk =
+      s.tocaResistencia;
+
+    candleOk =
+      s.velaBajista;
   }
 
   const checklist = [
     {
       label:
         'Horario permitido Guadalajara',
-      pass: session.allowed
+
+      pass:
+        session.allowed
     },
+
     {
       label:
         news.clear
           ? 'Sin noticia High Impact GBP/JPY'
           : `BLOQUEO: ${news.blockedEvent.currency} · ${news.blockedEvent.title}`,
-      pass: news.clear
+
+      pass:
+        news.clear
     },
+
     {
       label:
-        'Tendencia 15M definida',
-      pass: trendDefined
+        'Tendencia 15M Pine definida',
+
+      pass:
+        trendDefined
     },
+
     {
       label:
-        trend.trend === 'BEARISH'
-          ? 'Precio en zona de resistencia'
-          : 'Precio en zona de soporte',
-      pass: zoneOk
+        s.trend.trend ===
+          'BEARISH'
+          ? 'Precio toca resistencia Pine 5M'
+          : s.trend.trend ===
+              'BULLISH'
+            ? 'Precio toca soporte Pine 5M'
+            : 'Precio en zona Pine 5M',
+
+      pass:
+        zoneOk
     },
+
     {
       label:
-        trend.trend === 'BEARISH'
-          ? 'Vela 5M confirma venta'
-          : 'Vela 5M confirma compra',
-      pass: candleOk
+        s.trend.trend ===
+          'BEARISH'
+          ? 'Vela 5M bajista'
+          : s.trend.trend ===
+              'BULLISH'
+            ? 'Vela 5M alcista'
+            : 'Vela 5M de confirmación',
+
+      pass:
+        candleOk
+    },
+
+    {
+      label:
+        `Cooldown Pine disponible (${COOLDOWN_BARS} velas)`,
+
+      pass:
+        s.puedeDarSenal
     }
   ];
 
-  const passedChecks =
-    checklist.filter(
-      x => x.pass
-    ).length;
-
-  const totalChecks =
-    checklist.length;
-
-  const allFiltersPass =
+  const filtersPass =
     session.allowed &&
-    news.clear &&
-    trendDefined &&
-    zoneOk &&
-    candleOk;
+    news.clear;
 
-  let side = null;
-  let sl = null;
-  let tp = null;
-  let riskPips = null;
-
-  if (
-    allFiltersPass &&
-    trend.trend === 'BULLISH'
-  ) {
-    side = 'BUY';
-
-    sl =
-      support *
-      (1 - buffer);
-
-    const risk =
-      price - sl;
-
-    if (risk > 0) {
-      tp =
-        price +
-        risk * 2;
-
-      riskPips =
-        risk / PIP;
-    }
-  }
-
-  if (
-    allFiltersPass &&
-    trend.trend === 'BEARISH'
-  ) {
-    side = 'SELL';
-
-    sl =
-      resistance *
-      (1 + buffer);
-
-    const risk =
-      sl - price;
-
-    if (risk > 0) {
-      tp =
-        price -
-        risk * 2;
-
-      riskPips =
-        risk / PIP;
-    }
-  }
+  const finalSignal =
+    pineSignal &&
+    filtersPass
+      ? pineSignal
+      : null;
 
   return {
     verdict:
-      side || 'NO_TRADE',
+      finalSignal
+        ? finalSignal.side
+        : 'NO_TRADE',
 
-    pair: PAIR,
+    pair:
+      PAIR,
 
     price:
-      Number(
-        price.toFixed(3)
+      round3(
+        s.bar.close
       ),
 
     entry:
-      side
-        ? Number(
-            price.toFixed(3)
+      finalSignal
+        ? round3(
+            finalSignal.entry
           )
         : null,
 
     sl:
-      side && sl
-        ? Number(
-            sl.toFixed(3)
+      finalSignal
+        ? round3(
+            finalSignal.sl
           )
         : null,
 
     tp:
-      side && tp
-        ? Number(
-            tp.toFixed(3)
+      finalSignal
+        ? round3(
+            finalSignal.tp
           )
         : null,
 
     rr:
-      side ? 2 : null,
+      finalSignal
+        ? RR
+        : null,
 
     riskPips:
-      riskPips !== null
+      finalSignal
         ? Number(
-            riskPips.toFixed(1)
+            finalSignal
+              .riskPips
+              .toFixed(1)
           )
         : null,
 
     support:
-      Number(
-        support.toFixed(3)
+      round3(
+        s.support
       ),
 
     resistance:
-      Number(
-        resistance.toFixed(3)
+      round3(
+        s.resistance
       ),
 
-    trend,
+    trend:
+      s.trend,
 
     session,
 
@@ -694,67 +1210,142 @@ function analyze(
 
     checklist,
 
-    passedChecks,
+    passedChecks:
+      checklist.filter(
+        x => x.pass
+      ).length,
 
-    totalChecks,
+    totalChecks:
+      checklist.length,
 
     candleTime:
       new Date(
-        last.t * 1000
-      ).toISOString()
+        s.bar.t *
+          1000
+      ).toISOString(),
+
+    candleCloseTime:
+      new Date(
+        s.closeT *
+          1000
+      ).toISOString(),
+
+    pine: {
+      exactParameters: {
+        pivotLen:
+          PIVOT_LEN,
+
+        zonaPct:
+          ZONA_PCT,
+
+        slBufferPct:
+          SL_BUFFER_PCT,
+
+        cooldownBars:
+          COOLDOWN_BARS,
+
+        rr:
+          RR
+      },
+
+      signalOnCurrentClosedBar:
+        pineSignal
+          ? {
+              side:
+                pineSignal.side,
+
+              entry:
+                round3(
+                  pineSignal.entry
+                ),
+
+              sl:
+                round3(
+                  pineSignal.sl
+                ),
+
+              tp:
+                round3(
+                  pineSignal.tp
+                ),
+
+              riskPips:
+                Number(
+                  pineSignal
+                    .riskPips
+                    .toFixed(1)
+                ),
+
+              candleTime:
+                pineSignal
+                  .candleTime
+            }
+          : null,
+
+      latestSignalInLoadedHistory:
+        sim.latestPineSignal
+          ? {
+              side:
+                sim
+                  .latestPineSignal
+                  .side,
+
+              entry:
+                round3(
+                  sim
+                    .latestPineSignal
+                    .entry
+                ),
+
+              sl:
+                round3(
+                  sim
+                    .latestPineSignal
+                    .sl
+                ),
+
+              tp:
+                round3(
+                  sim
+                    .latestPineSignal
+                    .tp
+                ),
+
+              candleTime:
+                sim
+                  .latestPineSignal
+                  .candleTime
+            }
+          : null,
+
+      signalCountInLoadedHistory:
+        sim
+          .signalCountInLoadedHistory
+    }
   };
 }
 
 module.exports =
-async function handler(req, res) {
+async function handler(
+  req,
+  res
+) {
   try {
-    const session =
-      sessionStatus();
-
-    let news;
-
-    try {
-      const events =
-        await fetchForexFactoryCalendar();
-
-      news =
-        evaluateNews(events);
-
-    } catch (newsErr) {
-      // Si no podemos comprobar noticias,
-      // bloqueamos por seguridad.
-      news = {
-        clear: false,
-        blocked: true,
-        unavailable: true,
-        error:
-          newsErr?.message ||
-          String(newsErr),
-
-        blockedEvent: {
-          currency: 'N/A',
-          title:
-            'Calendario económico no disponible'
-        },
-
-        nextHighImpact: null
-      };
-    }
-
     const [
       fiveRaw,
       fifteenRaw
-    ] = await Promise.all([
-      fetchTwelveData(
-        '5min',
-        300
-      ),
+    ] =
+      await Promise.all([
+        fetchTwelveData(
+          '5min',
+          600
+        ),
 
-      fetchTwelveData(
-        '15min',
-        250
-      )
-    ]);
+        fetchTwelveData(
+          '15min',
+          400
+        )
+      ]);
 
     const c5 =
       confirmedCandles(
@@ -768,36 +1359,111 @@ async function handler(req, res) {
         900
       );
 
-    const analysis =
-      analyze(
+    if (
+      c5.length < 30 ||
+      c15.length < 30
+    ) {
+      throw new Error(
+        'No hay suficientes velas para replicar Pine'
+      );
+    }
+
+    const sim =
+      simulatePine(
         c5,
-        c15,
+        c15
+      );
+
+    const last =
+      sim.currentState;
+
+    const signalCloseDate =
+      new Date(
+        last.closeT *
+          1000
+      );
+
+    const session =
+      sessionStatusAt(
+        signalCloseDate
+      );
+
+    let news;
+
+    try {
+      const events =
+        await fetchForexFactoryCalendar();
+
+      news =
+        evaluateNews(
+          events,
+          signalCloseDate
+        );
+
+    } catch (newsErr) {
+      news = {
+        clear: false,
+        blocked: true,
+        unavailable: true,
+
+        error:
+          newsErr?.message ||
+          String(newsErr),
+
+        blockedEvent: {
+          currency:
+            'N/A',
+
+          title:
+            'Calendario económico no disponible'
+        },
+
+        nextHighImpact:
+          null
+      };
+    }
+
+    const analysis =
+      buildAnalysis(
+        sim,
         session,
         news
       );
 
-    json(res, 200, {
-      ok: true,
+    json(
+      res,
+      200,
+      {
+        ok: true,
 
-      source:
-        'Twelve Data',
+        source:
+          'Twelve Data',
 
-      calendarSource:
-        'Forex Factory',
+        strategy:
+          'Pine GBPJPY Radar v1 sincronizada',
 
-      generatedAt:
-        new Date().toISOString(),
+        calendarSource:
+          'Forex Factory',
 
-      ...analysis
-    });
+        generatedAt:
+          new Date()
+            .toISOString(),
+
+        ...analysis
+      }
+    );
 
   } catch (err) {
-    json(res, 502, {
-      ok: false,
+    json(
+      res,
+      502,
+      {
+        ok: false,
 
-      error:
-        err?.message ||
-        String(err)
-    });
+        error:
+          err?.message ||
+          String(err)
+      }
+    );
   }
 };
