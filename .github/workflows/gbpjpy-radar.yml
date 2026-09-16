@@ -13,7 +13,7 @@ on:
       timezone: 'America/Mexico_City'
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: gbpjpy-radar-monitor
@@ -24,6 +24,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Preparar estado
         run: mkdir -p .radar-state
 
@@ -43,7 +48,7 @@ jobs:
           PAYLOAD=$(jq -n \
             --arg topic "$NTFY_TOPIC" \
             --arg title "GBPJPY Radar conectado" \
-            --arg message "Prueba correcta. El monitor puede enviar avisos a tu iPhone." \
+            --arg message "Monitor y paper journal funcionando." \
             --arg click "https://gbpjpy-radar.vercel.app" \
             '{
               topic: $topic,
@@ -66,20 +71,21 @@ jobs:
             --retry 2 \
             --retry-delay 3 \
             "https://gbpjpy-radar.vercel.app/api/market" \
-            -o radar.json
+            -o market.json
 
-          cat radar.json | jq .
+          cat market.json | jq .
 
-          OK=$(jq -r '.ok // false' radar.json)
+          OK=$(jq -r '.ok // false' market.json)
 
           if [ "$OK" != "true" ]; then
             echo "El radar devolvio un error."
             exit 1
           fi
 
-          VERDICT=$(jq -r '.verdict // "NO_TRADE"' radar.json)
+          VERDICT=$(jq -r '.verdict // "NO_TRADE"' market.json)
 
           if [ "$VERDICT" = "BUY" ] || [ "$VERDICT" = "SELL" ]; then
+
             SIGNAL_DATA=$(jq -r '
               [
                 .verdict,
@@ -89,9 +95,10 @@ jobs:
                 .trend.highStructure,
                 .trend.lowStructure
               ] | join("|")
-            ' radar.json)
+            ' market.json)
 
             CURRENT_KEY=$(printf "%s" "$SIGNAL_DATA" | sha256sum | cut -d" " -f1)
+
           else
             CURRENT_KEY="NO_TRADE"
           fi
@@ -114,17 +121,46 @@ jobs:
 
           echo "$CURRENT_KEY" > .radar-state/last_key
 
+      - name: Obtener velas para paper trading
+        run: |
+          curl -fsS \
+            --retry 2 \
+            --retry-delay 3 \
+            "https://gbpjpy-radar.vercel.app/api/candles" \
+            -o candles.json
+
+          OK=$(jq -r '.ok // false' candles.json)
+
+          if [ "$OK" != "true" ]; then
+            echo "No se pudieron obtener las velas."
+            cat candles.json
+            exit 1
+          fi
+
+          echo "Velas recibidas:"
+          jq '.candles | length' candles.json
+
+      - name: Actualizar paper journal
+        id: paper
+        env:
+          NEW_SIGNAL: ${{ steps.radar.outputs.notify }}
+        run: |
+          node scripts/paper-journal.js \
+            market.json \
+            candles.json \
+            data/paper-trades.json
+
       - name: Enviar señal al iPhone
         if: steps.radar.outputs.notify == 'true'
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: |
-          VERDICT=$(jq -r '.verdict' radar.json)
-          ENTRY=$(jq -r '.entry' radar.json)
-          SL=$(jq -r '.sl' radar.json)
-          TP=$(jq -r '.tp' radar.json)
-          TREND=$(jq -r '.trend.trend' radar.json)
-          SCORE=$(jq -r '"\(.passedChecks)/\(.totalChecks)"' radar.json)
+          VERDICT=$(jq -r '.verdict' market.json)
+          ENTRY=$(jq -r '.entry' market.json)
+          SL=$(jq -r '.sl' market.json)
+          TP=$(jq -r '.tp' market.json)
+          TREND=$(jq -r '.trend.trend' market.json)
+          SCORE=$(jq -r '"\(.passedChecks)/\(.totalChecks)"' market.json)
 
           if [ "$VERDICT" = "BUY" ]; then
             TAG="chart_with_upwards_trend"
@@ -138,7 +174,8 @@ jobs:
           R:R 1:2
           Tendencia 15M: ${TREND}
           Confluencia: ${SCORE}
-          Noticias High Impact: LIBRE"
+          Noticias High Impact: LIBRE
+          Paper trade registrado automaticamente"
 
           PAYLOAD=$(jq -n \
             --arg topic "$NTFY_TOPIC" \
@@ -159,6 +196,27 @@ jobs:
             -H "Content-Type: application/json" \
             -d "$PAYLOAD" \
             https://ntfy.sh > /dev/null
+
+      - name: Guardar paper journal en GitHub
+        if: steps.paper.outputs.changed == 'true'
+        run: |
+          git config user.name "GBPJPY Radar Bot"
+          git config user.email "actions@users.noreply.github.com"
+
+          git add \
+            data/paper-trades.json \
+            data/paper-stats.json
+
+          if git diff --cached --quiet; then
+            echo "No hay cambios para guardar."
+            exit 0
+          fi
+
+          git commit -m "paper: actualizar GBPJPY journal"
+
+          git pull --rebase origin main
+
+          git push origin main
 
       - name: Guardar ultimo estado
         if: always()
