@@ -16,9 +16,9 @@
     "support": 209.182,
     "resistance": 209.335,
     "confluence": "5/5",
-    "result": "OPEN",
-    "r": null,
-    "closedAt": null,
+    "result": "LOSS",
+    "r": -1,
+    "closedAt": "2026-09-16T06:15:00.000Z",
     "source": "GBPJPY Radar"
   }
 ]
