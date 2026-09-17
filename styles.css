@@ -40,3 +40,5 @@
 #historyTab .journal-card{
   margin-top:0;
 }
+:root{}
+.verdict.setup{color:var(--amber);font-size:34px}

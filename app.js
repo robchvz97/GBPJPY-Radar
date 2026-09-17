@@ -253,7 +253,7 @@ function renderMarket(d) {
       `verdict ${d.verdict.toLowerCase()}`;
 
     $('#signalSubtitle').textContent =
-      `Señal Pine confirmada. Riesgo técnico: ${d.riskPips} pips.`;
+      `Tendencia, nivel y price action confirmados. Riesgo técnico: ${d.riskPips} pips.`;
 
     $('#entry').textContent =
       fmt(d.entry);
@@ -271,6 +271,20 @@ function renderMarket(d) {
       'hidden'
     );
 
+  } else if (d.verdict === 'SETUP_FORMING') {
+    verdict.textContent =
+      'SETUP EN FORMACIÓN';
+
+    verdict.className =
+      'verdict setup';
+
+    $('#signalSubtitle').textContent =
+      'Tendencia y nivel alineados. Falta confirmación de precio en 5M.';
+
+    plan.classList.add(
+      'hidden'
+    );
+
   } else {
     verdict.textContent =
       'NO TRADE';
@@ -278,17 +292,8 @@ function renderMarket(d) {
     verdict.className =
       'verdict neutral';
 
-    const pineSignal =
-      d.pine
-        ?.signalOnCurrentClosedBar;
-
-    if (pineSignal) {
-      $('#signalSubtitle').textContent =
-        `Pine detectó ${pineSignal.side}, pero un filtro de horario o noticias bloqueó la entrada.`;
-    } else {
-      $('#signalSubtitle').textContent =
-        'Sin señal Pine completa en la última vela cerrada.';
-    }
+    $('#signalSubtitle').textContent =
+      'Sin alineación entre tendencia clara y soporte/resistencia.';
 
     plan.classList.add(
       'hidden'
