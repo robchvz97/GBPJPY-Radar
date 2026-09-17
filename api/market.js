@@ -4,9 +4,9 @@ const PIP = 0.01;
 
 // Parámetros EXACTOS del Pine
 const PIVOT_LEN = 3;
-const ZONA_PCT = 0.05;
-const SL_BUFFER_PCT = 0.03;
-const COOLDOWN_BARS = 10;
+const ZONA_PIPS = 18;
+const SL_BUFFER_PIPS = 3;
+const COOLDOWN_BARS = 4;
 const RR = 2;
 
 const LOCAL_TZ = 'America/Mexico_City';
@@ -781,23 +781,18 @@ function simulatePine(
 
     const zonaSoporteSuperior =
       support !== null
-        ? support *
-          (
-            1 +
-            ZONA_PCT /
-              100
-          )
+        ? support + ZONA_PIPS * PIP
         : null;
 
     const zonaResistenciaInferior =
       resistance !== null
-        ? resistance *
-          (
-            1 -
-            ZONA_PCT /
-              100
-          )
+        ? resistance - ZONA_PIPS * PIP
         : null;
+
+    const prev = i > 0 ? c5[i - 1] : null;
+    const body = Math.max(Math.abs(bar.close - bar.open), PIP / 10);
+    const lowerWick = Math.min(bar.open, bar.close) - bar.low;
+    const upperWick = bar.high - Math.max(bar.open, bar.close);
 
     const velaAlcista =
       bar.close >
@@ -806,6 +801,34 @@ function simulatePine(
     const velaBajista =
       bar.close <
       bar.open;
+
+    const rechazoAlcista =
+      velaAlcista && lowerWick >= body * 0.30;
+
+    const rechazoBajista =
+      velaBajista && upperWick >= body * 0.30;
+
+    const engulfingAlcista =
+      prev && prev.close < prev.open && velaAlcista &&
+      bar.open <= prev.close && bar.close >= prev.open;
+
+    const engulfingBajista =
+      prev && prev.close > prev.open && velaBajista &&
+      bar.open >= prev.close && bar.close <= prev.open;
+
+    const recuperaSoporte =
+      prev && support !== null && prev.close < support &&
+      bar.close > support && velaAlcista;
+
+    const recuperaResistencia =
+      prev && resistance !== null && prev.close > resistance &&
+      bar.close < resistance && velaBajista;
+
+    const confirmacionAlcista =
+      rechazoAlcista || engulfingAlcista || recuperaSoporte;
+
+    const confirmacionBajista =
+      rechazoBajista || engulfingBajista || recuperaResistencia;
 
     const tocaSoporte =
       support !== null &&
@@ -836,12 +859,12 @@ function simulatePine(
     const setupCompra =
       tendenciaAlcista &&
       tocaSoporte &&
-      velaAlcista;
+      confirmacionAlcista;
 
     const setupVenta =
       tendenciaBajista &&
       tocaResistencia &&
-      velaBajista;
+      confirmacionBajista;
 
     const puedeDarSenal =
       lastSignalIndex ===
@@ -866,13 +889,7 @@ function simulatePine(
       const entry =
         bar.close;
 
-      const sl =
-        support *
-        (
-          1 -
-          SL_BUFFER_PCT /
-            100
-        );
+      const sl = Math.min(bar.low, support) - SL_BUFFER_PIPS * PIP;
 
       const risk =
         entry - sl;
@@ -915,13 +932,7 @@ function simulatePine(
       const entry =
         bar.close;
 
-      const sl =
-        resistance *
-        (
-          1 +
-          SL_BUFFER_PCT /
-            100
-        );
+      const sl = Math.max(bar.high, resistance) + SL_BUFFER_PIPS * PIP;
 
       const risk =
         sl - entry;
@@ -979,6 +990,8 @@ function simulatePine(
       zonaResistenciaInferior,
       velaAlcista,
       velaBajista,
+      confirmacionAlcista,
+      confirmacionBajista,
       tocaSoporte,
       tocaResistencia,
       setupCompra,
@@ -1054,7 +1067,7 @@ function buildAnalysis(
       s.tocaSoporte;
 
     candleOk =
-      s.velaAlcista;
+      s.confirmacionAlcista;
   }
 
   if (
@@ -1065,31 +1078,13 @@ function buildAnalysis(
       s.tocaResistencia;
 
     candleOk =
-      s.velaBajista;
+      s.confirmacionBajista;
   }
 
   const checklist = [
     {
       label:
-        'Horario permitido Guadalajara',
-
-      pass:
-        session.allowed
-    },
-
-    {
-      label:
-        news.clear
-          ? 'Sin noticia High Impact GBP/JPY'
-          : `BLOQUEO: ${news.blockedEvent.currency} · ${news.blockedEvent.title}`,
-
-      pass:
-        news.clear
-    },
-
-    {
-      label:
-        'Tendencia 15M Pine definida',
+        'Tendencia 15M clara (HH+HL o LH+LL)',
 
       pass:
         trendDefined
@@ -1099,11 +1094,11 @@ function buildAnalysis(
       label:
         s.trend.trend ===
           'BEARISH'
-          ? 'Precio toca resistencia Pine 5M'
+          ? `Precio en resistencia 5M (zona ${ZONA_PIPS} pips)`
           : s.trend.trend ===
               'BULLISH'
-            ? 'Precio toca soporte Pine 5M'
-            : 'Precio en zona Pine 5M',
+            ? `Precio en soporte 5M (zona ${ZONA_PIPS} pips)`
+            : 'Precio en soporte/resistencia 5M',
 
       pass:
         zoneOk
@@ -1113,40 +1108,27 @@ function buildAnalysis(
       label:
         s.trend.trend ===
           'BEARISH'
-          ? 'Vela 5M bajista'
+          ? 'Confirmación bajista: rechazo, engulfing o recuperación'
           : s.trend.trend ===
               'BULLISH'
-            ? 'Vela 5M alcista'
-            : 'Vela 5M de confirmación',
+            ? 'Confirmación alcista: rechazo, engulfing o recuperación'
+            : 'Confirmación 5M de price action',
 
       pass:
         candleOk
-    },
-
-    {
-      label:
-        `Cooldown Pine disponible (${COOLDOWN_BARS} velas)`,
-
-      pass:
-        s.puedeDarSenal
     }
   ];
 
-  const filtersPass =
-    session.allowed &&
-    news.clear;
-
-  const finalSignal =
-    pineSignal &&
-    filtersPass
-      ? pineSignal
-      : null;
+  const finalSignal = pineSignal;
+  const setupForming = trendDefined && zoneOk && !candleOk;
 
   return {
     verdict:
       finalSignal
         ? finalSignal.side
-        : 'NO_TRADE',
+        : setupForming
+          ? 'SETUP_FORMING'
+          : 'NO_TRADE',
 
     pair:
       PAIR,
@@ -1235,11 +1217,11 @@ function buildAnalysis(
         pivotLen:
           PIVOT_LEN,
 
-        zonaPct:
-          ZONA_PCT,
+        zonaPips:
+          ZONA_PIPS,
 
-        slBufferPct:
-          SL_BUFFER_PCT,
+        slBufferPips:
+          SL_BUFFER_PIPS,
 
         cooldownBars:
           COOLDOWN_BARS,
