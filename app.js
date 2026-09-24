@@ -764,10 +764,13 @@ refresh();
 
 
 /* =========================
-   ACTUALIZACIÓN CADA 5 MIN
-   ========================= */
-
+   ACTUALIZACIÓN AUTOMÁTICA
+   =========================
+   El journal se refresca frecuentemente para que
+   un cierre detectado por el monitor aparezca sin
+   tener que recargar la página manualmente.
+*/
 setInterval(
   refresh,
-  5 * 60 * 1000
+  30 * 1000
 );
