@@ -4,12 +4,9 @@ on:
   workflow_dispatch:
 
   schedule:
-    # Guadalajara: lunes a viernes, 06:01–10:56
-    - cron: '1-56/5 6-10 * * 1-5'
-      timezone: 'America/Mexico_City'
-
-    # Guadalajara: domingo a jueves, 20:01–22:56
-    - cron: '1-56/5 20-22 * * 0-4'
+    # Revisar el radar y resolver el paper journal cada 5 minutos
+    # durante las 24 horas de lunes a viernes.
+    - cron: '*/5 * * * 1-5'
       timezone: 'America/Mexico_City'
 
 permissions:
