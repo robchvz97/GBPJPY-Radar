@@ -12,7 +12,7 @@ function json(res, status, body) {
   );
   res.setHeader(
     'Cache-Control',
-    's-maxage=30, stale-while-revalidate=30'
+    'no-store, no-cache, must-revalidate, max-age=0'
   );
   res.end(JSON.stringify(body));
 }
