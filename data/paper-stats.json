@@ -1,17 +1,17 @@
 {
-  "updatedAt": "2026-10-09T23:27:18.906Z",
+  "updatedAt": "2026-10-10T02:35:03.825Z",
   "totalSignals": 6,
-  "open": 1,
-  "closedValid": 5,
+  "open": 0,
+  "closedValid": 6,
   "wins": 0,
-  "losses": 5,
+  "losses": 6,
   "ambiguous": 0,
   "winRatePct": 0,
-  "totalR": -5,
+  "totalR": -6,
   "expectancyR": -1,
   "profitFactor": 0,
-  "maxLossStreak": 5,
+  "maxLossStreak": 6,
   "simulatedRiskPerTradePct": 1,
-  "simulatedBalanceFrom100": 95.1,
-  "simulatedReturnPct": -4.9
+  "simulatedBalanceFrom100": 94.15,
+  "simulatedReturnPct": -5.85
 }
