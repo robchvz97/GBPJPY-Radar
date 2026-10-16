@@ -1,17 +1,17 @@
 {
-  "updatedAt": "2026-10-16T18:08:43.827Z",
-  "totalSignals": 11,
+  "updatedAt": "2026-10-16T23:30:24.176Z",
+  "totalSignals": 12,
   "open": 1,
-  "closedValid": 10,
+  "closedValid": 11,
   "wins": 1,
-  "losses": 9,
+  "losses": 10,
   "ambiguous": 0,
-  "winRatePct": 10,
-  "totalR": -7,
-  "expectancyR": -0.7,
-  "profitFactor": 0.22,
+  "winRatePct": 9.09,
+  "totalR": -8,
+  "expectancyR": -0.727,
+  "profitFactor": 0.2,
   "maxLossStreak": 6,
   "simulatedRiskPerTradePct": 1,
-  "simulatedBalanceFrom100": 93.18,
-  "simulatedReturnPct": -6.82
+  "simulatedBalanceFrom100": 92.25,
+  "simulatedReturnPct": -7.75
 }
