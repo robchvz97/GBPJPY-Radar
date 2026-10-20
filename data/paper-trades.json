@@ -280,9 +280,9 @@
     "support": 210.87,
     "resistance": 210.993,
     "confluence": "3/3",
-    "result": "OPEN",
-    "r": null,
-    "closedAt": null,
+    "result": "WIN",
+    "r": 2,
+    "closedAt": "2026-10-20T13:50:00.000Z",
     "source": "GBPJPY Radar"
   },
   {
@@ -302,9 +302,9 @@
     "support": 210.905,
     "resistance": 211.157,
     "confluence": "3/3",
-    "result": "OPEN",
-    "r": null,
-    "closedAt": null,
+    "result": "LOSS",
+    "r": -1,
+    "closedAt": "2026-10-20T12:30:00.000Z",
     "source": "GBPJPY Radar"
   }
 ]
