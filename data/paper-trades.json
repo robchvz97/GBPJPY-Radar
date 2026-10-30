@@ -350,5 +350,27 @@
     "r": -1,
     "closedAt": "2026-10-27T21:05:00.000Z",
     "source": "GBPJPY Radar"
+  },
+  {
+    "id": "BUY_2026-10-30T18:10:00.000Z",
+    "signalKey": "BUY_2026-10-30T18:10:00.000Z",
+    "pair": "GBP/JPY",
+    "side": "BUY",
+    "entry": 210.825,
+    "sl": 210.688,
+    "tp": 211.1,
+    "rr": 2,
+    "riskPips": 13.8,
+    "candleTime": "2026-10-30T18:10:00.000Z",
+    "detectedAt": "2026-10-30T18:16:21.761Z",
+    "trend15m": "BULLISH",
+    "structure": "HH/HL",
+    "support": 210.718,
+    "resistance": 211.013,
+    "confluence": "3/3",
+    "result": "OPEN",
+    "r": null,
+    "closedAt": null,
+    "source": "GBPJPY Radar"
   }
 ]
