@@ -372,5 +372,27 @@
     "r": 2,
     "closedAt": "2026-10-30T20:30:00.000Z",
     "source": "GBPJPY Radar"
+  },
+  {
+    "id": "SELL_2026-11-03T03:40:00.000Z",
+    "signalKey": "SELL_2026-11-03T03:40:00.000Z",
+    "pair": "GBP/JPY",
+    "side": "SELL",
+    "entry": 211.651,
+    "sl": 211.708,
+    "tp": 211.537,
+    "rr": 2,
+    "riskPips": 5.7,
+    "candleTime": "2026-11-03T03:40:00.000Z",
+    "detectedAt": "2026-11-03T03:47:12.462Z",
+    "trend15m": "BEARISH",
+    "structure": "LH/LL",
+    "support": 211.584,
+    "resistance": 211.667,
+    "confluence": "3/3",
+    "result": "OPEN",
+    "r": null,
+    "closedAt": null,
+    "source": "GBPJPY Radar"
   }
 ]
